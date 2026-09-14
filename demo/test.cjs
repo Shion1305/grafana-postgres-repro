@@ -22,6 +22,7 @@ const report = {
   operatorReconciliation: 'Direct replay of legacy/corrected API payloads; no Kubernetes operator is running',
   sql: 'SELECT 1 AS healthy',
   stages: [],
+  browserErrors: [],
 };
 
 async function api(method, route, body) {
@@ -127,6 +128,14 @@ async function main() {
       const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
       page.setDefaultTimeout(20000);
       activePage = page;
+      const record = detail => {
+        if (report.browserErrors.length < 30) report.browserErrors.push({ page: page.url(), ...detail });
+      };
+      page.on('pageerror', error => record({ kind: 'javascript', message: error.message }));
+      page.on('requestfailed', request => record({ kind: 'request', url: request.url(), error: request.failure()?.errorText }));
+      page.on('response', response => {
+        if (response.status() >= 400) record({ kind: 'http', url: response.url(), status: response.status() });
+      });
       return page;
     }
 

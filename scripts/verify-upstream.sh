@@ -74,6 +74,7 @@ for phase in ("baseline", "fixed"):
 PY
 
 prepare_checkout() {
+  [[ $(git apply --numstat "$PATCH_FILE" | awk '{print $3}') == "$IMPLEMENTATION" ]]
   if [[ ! -e "$CHECKOUT_DIR" ]]; then
     # A local object cache speeds development. The fetch URL is always official,
     # and neither modifications nor untracked tests from the cache are copied.
