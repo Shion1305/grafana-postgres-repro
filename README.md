@@ -52,7 +52,7 @@ Two independent PRs are open, each with its implementation change and regression
 Checked locally on **2026-09-15**, separately from this repository's pinned-version CI:
 
 - **Grafana**, base [`93cdf6559b74`](https://github.com/grafana/grafana/commit/93cdf6559b749520be0ce4b597781363a286da4d): four PostgreSQL alias cases fail before the fix; all **10 regression cases** and **18 existing frontend-settings cases** pass afterward. Covers both PostgreSQL type names, absent/empty database values, and preservation of explicit settings. Package lint passes.
-- **Operator**, base [`4d30d715d925`](https://github.com/grafana/grafana-operator/commit/4d30d715d9257007f55c41d91962306ddb92a260): two failures reproduce unstable hashes and an unwanted PUT; all **six regression cases** pass afterward. Checks also cover reordered JSON keys and real configuration/credential changes. Project lint and vet pass.
+- **Operator**, base [`4d30d715d925`](https://github.com/grafana/grafana-operator/commit/4d30d715d9257007f55c41d91962306ddb92a260): two failures reproduce unstable hashes and an unwanted PUT; all **six regression cases** pass afterward. Checks also cover reordered JSON keys and real configuration/credential changes. `go test -short ./...` and `make all` pass, including integration tests, lint, vet, and generated-file checks. The full run used an isolated Docker config for public images to avoid a local credential-helper stall.
 
 The [Grafana patch here](patches/grafana.patch) intentionally retains the **12.4.1** filename, `pkg/api/frontendsettings.go`; the upstream PR uses its current name, `pkg/api/bootdata.go`. The [successful CI proof](https://github.com/Shion1305/grafana-postgres-repro/actions/runs/34858037519) continues to test **Grafana 12.4.1 and Operator 5.24.0**. Upstream PR checks are tracked on the linked PRs.
 
@@ -60,7 +60,7 @@ The [Grafana patch here](patches/grafana.patch) intentionally retains the **12.4
 
 - **Grafana:** fixes the frontend database fallback without rewriting stored configuration. A backport to affected supported releases remains a maintainer decision.
 - **Operator:** prevents unnecessary writes. Its hash format changes once, causing one initial update; it does not migrate database fields or add general drift detection. No `ajson` library patch is needed.
-- Both PRs use signed commits. Grafana also requires its contributor CLA. The Operator PR is a draft requesting the explicit maintainer exception allowed by its [AI contribution policy](https://github.com/grafana/grafana-operator/blob/master/CONTRIBUTING.md#usage-of-generative-ai); no exception has been granted.
+- Both PRs use signed commits and require a contributor CLA. The Operator PR is a draft requesting the explicit maintainer exception allowed by its [AI contribution policy](https://github.com/grafana/grafana-operator/blob/master/CONTRIBUTING.md#usage-of-generative-ai); no exception has been granted.
 
 ## Run it yourself
 
