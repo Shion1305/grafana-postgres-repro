@@ -38,33 +38,29 @@ The browser uses real Grafana, PostgreSQL, and Chromium. It **replays the operat
 
 Tests are added **before** either source patch and are unchanged between runs. Upstream commits and Go versions are pinned in [versions.env](versions.env); container digests and browser dependencies are pinned in [demo/](demo/).
 
-## Where to contribute upstream
+## Upstream contributions
 
-**Submit two separate PRs: one to Grafana, one to Grafana Operator.** Each PR should contain its implementation change and regression tests in the upstream source tree, with a link to this repository for the browser demo and CI evidence.
+Two independent PRs are open, each with its implementation change and regression tests:
 
-### 1. Grafana: restore database fallback for SQL datasource aliases
+| Project | Issue | PR | Upstream change |
+|---|---|---|---|
+| **Grafana** (`main`) | [#132582](https://github.com/grafana/grafana/issues/132582) | [#132583](https://github.com/grafana/grafana/pull/132583) | Use the resolved plugin type for the database fallback in `pkg/api/bootdata.go` |
+| **Grafana Operator** (`master`) | [#2953](https://github.com/grafana/grafana-operator/issues/2953) | [#2954 — draft](https://github.com/grafana/grafana-operator/pull/2954) | Hash the resolved API command consistently in `controllers/datasource_controller.go` |
 
-- **Target:** [`grafana/grafana`](https://github.com/grafana/grafana), base branch **`main`**.
-- **Change:** in `getFSDataSources`, check the resolved `dsDTO.Type` instead of `ds.Type` when copying the legacy database into `jsonData.database`. Preserve an explicitly configured JSON database. See [candidate patch](patches/grafana.patch).
-- **Current file:** [`pkg/api/bootdata.go`](https://github.com/grafana/grafana/blob/93cdf6559b749520be0ce4b597781363a286da4d/pkg/api/bootdata.go#L341). The candidate targets **12.4.1**, where this file was named `pkg/api/frontendsettings.go`; port the change to the current path before submitting.
-- **Include tests:** adapt [the SQL alias regression test](tests/grafana/frontendsettings_sql_database_test.go) into `pkg/api/bootdata_sql_database_test.go` (package `api`). Cover aliases and canonical types, missing/empty database fields, and preservation of explicit values. Pinned proof: **12 expected failures → all 30 cases pass**.
+### Validation against current upstream source
 
-Reference [#112418](https://github.com/grafana/grafana/issues/112418) as related background: it was closed after a configuration workaround, not an alias-compatibility fix. Identify or open a focused issue for this fallback bug. After the `main` fix, ask maintainers about a backport to affected supported releases; the inspected `release-12.4.0` branch still has the original check.
+Checked locally on **2026-09-15**, separately from this repository's pinned-version CI:
 
-### 2. Grafana Operator: make datasource hashes stable
+- **Grafana**, base [`93cdf6559b74`](https://github.com/grafana/grafana/commit/93cdf6559b749520be0ce4b597781363a286da4d): four PostgreSQL alias cases fail before the fix; all **10 regression cases** and **18 existing frontend-settings cases** pass afterward. Covers both PostgreSQL type names, absent/empty database values, and preservation of explicit settings. Package lint passes.
+- **Operator**, base [`4d30d715d925`](https://github.com/grafana/grafana-operator/commit/4d30d715d9257007f55c41d91962306ddb92a260): two failures reproduce unstable hashes and an unwanted PUT; all **six regression cases** pass afterward. Checks also cover reordered JSON keys and real configuration/credential changes. Project lint and vet pass.
 
-- **Target:** [`grafana/grafana-operator`](https://github.com/grafana/grafana-operator), base branch **`master`**.
-- **Change:** in [`controllers/datasource_controller.go`](https://github.com/grafana/grafana-operator/blob/4d30d715d9257007f55c41d91962306ddb92a260/controllers/datasource_controller.go#L499), hash `encoding/json.Marshal(&res)` after decoding the resolved API command, instead of hashing the order-dependent `ajson` bytes. See [candidate patch](patches/operator.patch).
-- **Include tests:** adapt [the hash/controller regression tests](tests/operator/datasource_hash_test.go) into `controllers/datasource_hash_test.go`. Verify stable hashes despite key reordering, detection of real payload/credential changes, and no PUT for unchanged reconciliation. Pinned proof: **2 expected failures → all 6 cases pass**.
-- **Scope:** this fixes unnecessary writes, not database-field migration or general drift detection. Changing hash formats causes one initial update. Stable comparison belongs in this controller; no `ajson` library patch is required.
+The [Grafana patch here](patches/grafana.patch) intentionally retains the **12.4.1** filename, `pkg/api/frontendsettings.go`; the upstream PR uses its current name, `pkg/api/bootdata.go`. The [successful CI proof](https://github.com/Shion1305/grafana-postgres-repro/actions/runs/34858037519) continues to test **Grafana 12.4.1 and Operator 5.24.0**. Upstream PR checks are tracked on the linked PRs.
 
-### Submission readiness
+### Scope and submission status
 
-Source and contribution guides checked **2026-09-15**: both relevant code patterns remain in the linked upstream commits. **CI here proves Grafana 12.4.1 and Operator 5.24.0 only.** Port and rerun each regression before/after the change on its current target branch, then run upstream checks. The patches have not been submitted upstream.
-
-- Link the focused bug report, this repository, and the [successful proof run](https://github.com/Shion1305/grafana-postgres-repro/actions/runs/34858037519) in each PR. Keep the two fixes independent; the deployment-only `jsonData.database` workaround belongs in GitOps manifests.
-- **Grafana:** follow its [PR guide](https://github.com/grafana/grafana/blob/93cdf6559b749520be0ce4b597781363a286da4d/contribute/create-pull-request.md) and [contribution requirements](https://github.com/grafana/grafana/blob/93cdf6559b749520be0ce4b597781363a286da4d/CONTRIBUTING.md): appropriate tests, signed commits, and the contributor CLA.
-- **Operator:** its [contribution guide](https://github.com/grafana/grafana-operator/blob/4d30d715d9257007f55c41d91962306ddb92a260/CONTRIBUTING.md) requires `make all` and recommends `make test`. For a contributor's first three contributions, code must be primarily human-written and the PR description entirely human-written, unless maintainers grant an exception. These candidate patches/tests were AI-assisted; use them as investigation material and follow that policy when preparing the submission.
+- **Grafana:** fixes the frontend database fallback without rewriting stored configuration. A backport to affected supported releases remains a maintainer decision.
+- **Operator:** prevents unnecessary writes. Its hash format changes once, causing one initial update; it does not migrate database fields or add general drift detection. No `ajson` library patch is needed.
+- Both PRs use signed commits. Grafana also requires its contributor CLA. The Operator PR is a draft requesting the explicit maintainer exception allowed by its [AI contribution policy](https://github.com/grafana/grafana-operator/blob/master/CONTRIBUTING.md#usage-of-generative-ai); no exception has been granted.
 
 ## Run it yourself
 
