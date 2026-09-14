@@ -1,0 +1,19 @@
+{
+  "uid": "postgres-demo",
+  "name": "PostgreSQL database field demo",
+  "type": "postgres",
+  "access": "proxy",
+  "url": "postgres:5432",
+  "user": "demo",
+  "database": "demo",
+  "isDefault": false,
+  "editable": true,
+  "secureJsonData": {
+    "password": "local-demo-postgres-password"
+  },
+  "jsonData": {
+    "sslmode": "disable",
+    "postgresVersion": 1700,
+    "timescaledb": false
+  }
+}

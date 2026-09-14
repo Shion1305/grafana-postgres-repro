@@ -1,0 +1,96 @@
+name: Proof
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Browser reproduction
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
+      - name: Install browser dependencies
+        working-directory: demo
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Start disposable Grafana and PostgreSQL
+        working-directory: demo
+        run: docker compose up -d --wait --wait-timeout 120
+      - name: Prove failure, recovery, recurrence, and configuration fix
+        working-directory: demo
+        run: npm test
+      - name: Preserve container logs
+        if: always()
+        run: |
+          mkdir -p evidence/demo
+          docker compose -f demo/compose.yaml logs --no-color > evidence/demo/containers.log
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-evidence
+          path: evidence/demo
+          retention-days: 30
+      - name: Stop disposable stack
+        if: always()
+        working-directory: demo
+        run: docker compose down
+
+  source:
+    name: ${{ matrix.label }} regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: grafana
+            label: Grafana
+          - component: operator
+            label: Operator
+    env:
+      COMPONENT: ${{ matrix.component }}
+      GOMAXPROCS: '2'
+      GOFLAGS: '-p=2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read pinned Go version
+        id: version
+        shell: bash
+        run: |
+          source versions.env
+          key="${COMPONENT^^}_GO_VERSION"
+          printf 'go=%s\n' "${!key}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ steps.version.outputs.go }}
+          cache-dependency-path: versions.env
+      - name: Prove expected regression failures and patched passes
+        run: ./scripts/verify-upstream.sh "$COMPONENT"
+      - name: Explain the result
+        if: always()
+        run: python3 scripts/summarize.py "$COMPONENT"
+      - name: Upload source evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.component }}-evidence
+          path: evidence/${{ matrix.component }}
+          retention-days: 30
